@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>日程調整アプリ（モックUI）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #e3f2fd; /* 淡い水色 */
+      color: #0b214a;
+      font-size: 18px; /* 全体的に文字を大きめに */
+      line-height: 1.7;
+    }
+    #app {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 2px 6px rgba(13, 71, 161, 0.1);
+      border: 1px solid #bbdefb;
+    }
+    h1, h2, h3 {
+      margin-top: 0;
+      color: #0d47a1;
+    }
+    h1 {
+      font-size: 26px;
+      margin-bottom: 12px;
+    }
+    h2 {
+      font-size: 22px;
+      margin-bottom: 10px;
+    }
+    h3 {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+    p, label {
+      font-size: 18px;
+    }
+    input[type="text"],
+    input[type="date"],
+    input[type="datetime-local"],
+    input[type="time"],
+    select {
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid #90caf9;
+      min-width: 140px;
+      box-sizing: border-box;
+      font-size: 16px;
+      background: #f5fbff;
+    }
+    input:focus, select:focus {
+      outline: 2px solid #64b5f6;
+      outline-offset: 1px;
+    }
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #42a5f5; /* 淡めの青ボタン */
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    button:hover:not(:disabled) {
+      background: #1e88e5;
+    }
+    button:disabled {
+      background: #b0bec5;
+      cursor: not-allowed;
+    }
+    .btn-secondary {
+      background: #78909c;
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: #546e7a;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 14px;
+      margin-left: 6px;
+    }
+    .badge-admin-off {
+      background: #e3f2fd;
+      color: #1565c0;
+      border: 1px solid #bbdefb;
+    }
+    .badge-participate {
+      background: #bbdefb;
+      color: #0d47a1;
+    }
+    .badge-absent {
+      background: #ffcdd2;
+      color: #b71c1c;
+    }
+    .badge-undecided {
+      background: #fff9c4;
+      color: #f57f17;
+    }
+    .date-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding: 8px 4px;
+      border-bottom: 1px dashed #bbdefb;
+    }
+    .date-row.disabled {
+      opacity: 0.5;
+    }
+    .date-label {
+      min-width: 280px;
+      font-weight: 600;
+    }
+    .button-group {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 16px;
+    }
+    .table th, .table td {
+      border: 1px solid #bbdefb;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .table th {
+      background: #bbdefb;
+      color: #0d47a1;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 17px;
+      }
+      .date-label {
+        min-width: auto;
+        width: 100%;
+      }
+      .date-row {
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // ===== 基本設定 =====
+    const USE_MOCK = true;
+    const API_BASE = "https://YOUR_REGION-YOUR_PROJECT.cloudfunctions.net/api";
+
+    let currentUser = null;
+    let currentMonthId = "2025-12"; // 基準月を 2025-12 に固定
+    let currentMonthlyData = null;
+
+    // ===== 共通ユーティリティ =====
+    function shiftMonth(monthId, offset) {
+      const parts = monthId.split("-");
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const dt = new Date(y, m - 1 + offset, 1);
+      const yy = dt.getFullYear();
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      return yy + "-" + mm;
+    }
+
+    function formatDateJP(dateStr) {
+      const parts = dateStr.split("-");
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const d = parseInt(parts[2], 10);
+      const dt = new Date(y, m - 1, d);
+      const wnames = ["日", "月", "火", "水", "木", "金", "土"];
+      return (
+        y +
+        "/" +
+        String(m).padStart(2, "0") +
+        "/" +
+        String(d).padStart(2, "0") +
+        " (" +
+        wnames[dt.getDay()] +
+        ")"
+      );
+    }
+
+    function formatDeadline(deadlineIso) {
+      if (!deadlineIso) return "未設定";
+      const dt = new Date(deadlineIso);
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, "0");
+      const d = String(dt.getDate()).padStart(2, "0");
+      const hh = String(dt.getHours()).padStart(2, "0");
+      const mm = String(dt.getMinutes()).padStart(2, "0");
+      return y + "-" + m + "-" + d + " " + hh + ":" + mm;
+    }
+
+    function formatFinalLabel(finalStr) {
+      if (!finalStr) return "未確定";
+      var parts = finalStr.split(" ");
+      var datePart = parts[0];
+      var timePart = parts[1] || "";
+      if (!timePart) {
+        return formatDateJP(finalStr);
+      }
+      return formatDateJP(datePart) + " " + timePart.replace("-", "〜");
+    }
+
+    function createElement(html) {
+      const div = document.createElement("div");
+      div.innerHTML = html.trim();
+      return div.firstChild;
+    }
+
+    function showMessage(msg) {
+      alert(msg);
+    }
+
+    // ===== モックDB =====
+    const mockDb = {
+      users: [
+        { userId: "9999", role: "admin" },
+        { userId: "0001", role: "staff" },
+        { userId: "0002", role: "staff" },
+        { userId: "0003", role: "staff" }
+      ],
+      months: {}, // monthId -> { id, deadlineIso, finalDate, answersLocked }
+      dates: [],  // { id, monthId, date, startTime, endTime, adminAvailability }
+      answers: [] // { monthId, slotId, userId, answer }
+    };
+
+    function ensureMonthInitialized(monthId) {
+      if (mockDb.months[monthId]) return;
+
+      mockDb.months[monthId] = {
+        id: monthId,
+        deadlineIso: null,
+        finalDate: null,
+        answersLocked: false
+      };
+
+      const parts = monthId.split("-");
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10); // 1-12
+      if (!Number.isInteger(year) || !Number.isInteger(month)) return;
+
+      const lastDay = new Date(year, month, 0).getDate();
+      const timeSlots = [
+        { start: "10:00", end: "11:00" },
+        { start: "11:00", end: "12:00" }
+      ];
+
+      for (let day = 1; day <= lastDay; day++) {
+        const dt = new Date(year, month - 1, day);
+        const dow = dt.getDay(); // 0:日 ~ 6:土
+        if (dow === 2 || dow === 5) { // 火(2)・金(5)
+          const dateStr =
+            year +
+            "-" +
+            String(month).padStart(2, "0") +
+            "-" +
+            String(day).padStart(2, "0");
+          for (let i = 0; i < timeSlots.length; i++) {
+            const slot = timeSlots[i];
+            const startKey = slot.start.replace(":", "");
+            const endKey = slot.end.replace(":", "");
+            const id = monthId + "_" + dateStr + "_" + startKey + "-" + endKey;
+            mockDb.dates.push({
+              id: id,
+              monthId: monthId,
+              date: dateStr,
+              startTime: slot.start,
+              endTime: slot.end,
+              adminAvailability: "参加"
+            });
+          }
+        }
+      }
+    }
+
+    // 初期データ：2025-12
+    const initialMonthId = "2025-12";
+    ensureMonthInitialized(initialMonthId);
+    currentMonthId = initialMonthId;
+    mockDb.months[initialMonthId].deadlineIso = "2025-12-03T14:59:00.000Z";
+
+    function mockDelay(ms) {
+      const t = ms || 200;
+      return new Promise(function (resolve) {
+        setTimeout(resolve, t);
+      });
+    }
+
+    // ===== モックAPI =====
+    async function mockApiGet(path) {
+      await mockDelay();
+
+      if (path.indexOf("/getUser") === 0) {
+        const url = new URL("http://dummy" + path);
+        const userId = url.searchParams.get("userId");
+        const user = mockDb.users.find(function (u) {
+          return u.userId === userId;
+        });
+        if (!user) return { success: false, message: "社員番号が登録されていません" };
+        return { success: true, data: { userId: user.userId, role: user.role } };
+      }
+
+      if (path.indexOf("/getMonthlyData") === 0) {
+        const url = new URL("http://dummy" + path);
+        const monthIdParam = url.searchParams.get("monthId");
+        const userId = url.searchParams.get("userId");
+        const monthId = monthIdParam || currentMonthId;
+
+        ensureMonthInitialized(monthId);
+
+        const monthObj = mockDb.months[monthId];
+        const month = {
+          id: monthObj.id,
+          deadlineIso: monthObj.deadlineIso,
+          finalDate: monthObj.finalDate,
+          answersLocked: monthObj.answersLocked
+        };
+
+        const dates = mockDb.dates.filter(function (d) {
+          return d.monthId === monthId;
+        });
+
+        const answersSummary = {};
+        const userAnswers = {};
+        mockDb.answers
+          .filter(function (a) {
+            return a.monthId === monthId;
+          })
+          .forEach(function (a) {
+            if (!answersSummary[a.slotId]) {
+              answersSummary[a.slotId] = { 参加: 0, 不参加: 0, 未定: 0 };
+            }
+            answersSummary[a.slotId][a.answer] += 1;
+            if (a.userId === userId) {
+              userAnswers[a.slotId] = a.answer;
+            }
+          });
+
+        return { success: true, data: { month: month, dates: dates, answersSummary: answersSummary, userAnswers: userAnswers } };
+      }
+
+      return { success: false, message: "未知のGETモックAPIです" };
+    }
+
+    async function mockApiPost(path, body) {
+      await mockDelay();
+
+      if (path === "/submitAnswer") {
+        const monthId = body.monthId;
+        const slotId = body.slotId;
+        const userId = body.userId;
+        const answer = body.answer;
+        if (!monthId || !slotId) return { success: false, message: "monthId/slotId が不足しています" };
+        ensureMonthInitialized(monthId);
+        if (["参加", "不参加", "未定"].indexOf(answer) === -1) {
+          return { success: false, message: "answer が不正です" };
+        }
+        const idx = mockDb.answers.findIndex(function (a) {
+          return a.monthId === monthId && a.slotId === slotId && a.userId === userId;
+        });
+        if (idx >= 0) {
+          mockDb.answers[idx].answer = answer;
+        } else {
+          mockDb.answers.push({ monthId: monthId, slotId: slotId, userId: userId, answer: answer });
+        }
+        return { success: true };
+      }
+
+      if (path === "/setCandidateDates") {
+        const monthId = body.monthId;
+        const date = body.date;
+        const startTime = body.startTime;
+        const endTime = body.endTime;
+        const dates = body.dates;
+        if (!monthId) return { success: false, message: "monthId が指定されていません" };
+        ensureMonthInitialized(monthId);
+
+        // 新仕様：日付 + 時間指定で1スロット追加
+        if (monthId && date && startTime && endTime) {
+          const startKey = startTime.replace(":", "");
+          const endKey = endTime.replace(":", "");
+          const id = monthId + "_" + date + "_" + startKey + "-" + endKey;
+          const exists = mockDb.dates.find(function (x) {
+            return x.id === id;
+          });
+          if (!exists) {
+            mockDb.dates.push({
+              id: id,
+              monthId: monthId,
+              date: date,
+              startTime: startTime,
+              endTime: endTime,
+              adminAvailability: "未設定"
+            });
+          }
+          return { success: true };
+        }
+
+        // 旧仕様互換：dates 配列だけ渡された場合は 10-11 / 11-12 を作る
+        if (monthId && Array.isArray(dates)) {
+          const timeSlots = [
+            { start: "10:00", end: "11:00" },
+            { start: "11:00", end: "12:00" }
+          ];
+          dates.forEach(function (d) {
+            timeSlots.forEach(function (slot) {
+              const startKey = slot.start.replace(":", "");
+              const endKey = slot.end.replace(":", "");
+              const id = monthId + "_" + d + "_" + startKey + "-" + endKey;
+              const exists = mockDb.dates.find(function (x) {
+                return x.id === id;
+              });
+              if (!exists) {
+                mockDb.dates.push({
+                  id: id,
+                  monthId: monthId,
+                  date: d,
+                  startTime: slot.start,
+                  endTime: slot.end,
+                  adminAvailability: "未設定"
+                });
+              }
+            });
+          });
+          return { success: true };
+        }
+
+        return { success: false, message: "setCandidateDates のパラメータが不正です" };
+      }
+
+      if (path === "/setAdminAvailability") {
+        const monthId = body.monthId;
+        const slotId = body.slotId;
+        const availability = body.availability;
+        if (!monthId || !slotId) return { success: false, message: "monthId/slotId が不足しています" };
+        ensureMonthInitialized(monthId);
+        const target = mockDb.dates.find(function (d) {
+          return d.monthId === monthId && d.id === slotId;
+        });
+        if (target) {
+          target.adminAvailability = availability;
+        }
+        return { success: true };
+      }
+
+      if (path === "/setDeadline") {
+        const monthId = body.monthId;
+        const deadline = body.deadline; // "YYYY-MM-DD HH:mm"
+        if (!monthId) return { success: false, message: "monthId が指定されていません" };
+        ensureMonthInitialized(monthId);
+        const parts = deadline.split(" ");
+        const datePart = parts[0];
+        const timePart = parts[1];
+        const iso = new Date(datePart + "T" + timePart + ":00").toISOString();
+        mockDb.months[monthId].deadlineIso = iso;
+        return { success: true };
+      }
+
+      if (path === "/setFinalDate") {
+        const monthId = body.monthId;
+        const finalDate = body.finalDate;
+        if (!monthId) return { success: false, message: "monthId が指定されていません" };
+        ensureMonthInitialized(monthId);
+        mockDb.months[monthId].finalDate = finalDate;
+        return { success: true };
+      }
+
+      return { success: false, message: "未知のPOSTモックAPIです" };
+    }
+
+    // ===== 実APIラッパー（モック切り替え） =====
+    async function apiGet(path) {
+      if (USE_MOCK) return mockApiGet(path);
+      const res = await fetch(API_BASE + path, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+      });
+      return res.json();
+    }
+
+    async function apiPost(path, body) {
+      if (USE_MOCK) return mockApiPost(path, body);
+      const res = await fetch(API_BASE + path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      return res.json();
+    }
+
+    // ===== 画面描画 =====
+    function renderLogin() {
+      const app = document.getElementById("app");
+      app.innerHTML = "";
+
+      const card = createElement(
+        '<div class="card">' +
+          '<h1>スタッフミーティング 日程調整</h1>' +
+          '<h2>ログイン</h2>' +
+          '<p>管理者: <code>9999<\/code> \/ スタッフ: <code>0001<\/code>〜<code>0003<\/code></p>' +
+          '<div>' +
+            '<label>社員番号：<input type="text" id="loginUserId" placeholder="4〜6桁の数字" /></label>' +
+          '</div>' +
+          '<div style="margin-top:12px;">' +
+            '<button id="loginBtn">ログイン</button>' +
+          '</div>' +
+        '</div>'
+      );
+
+      app.appendChild(card);
+      document.getElementById("loginBtn").addEventListener("click", onLogin);
+    }
+
+    async function onLogin() {
+      const input = document.getElementById("loginUserId");
+      const userId = input.value.trim();
+      if (!/^[0-9]{4,6}$/.test(userId)) {
+        showMessage("社員番号は4〜6桁の数字で入力してください");
+        return;
+      }
+      const res = await apiGet("/getUser?userId=" + encodeURIComponent(userId));
+      if (!res.success) {
+        showMessage(res.message || "社員番号が登録されていません");
+        return;
+      }
+      currentUser = res.data;
+      await loadMonthlyData();
+    }
+
+    async function loadMonthlyData() {
+      const app = document.getElementById("app");
+      app.innerHTML = '<div class="card"><p>読み込み中...</p></div>';
+
+      const res = await apiGet(
+        "/getMonthlyData?monthId=" +
+          encodeURIComponent(currentMonthId) +
+          "&userId=" +
+          encodeURIComponent(currentUser.userId)
+      );
+      if (!res.success) {
+        app.innerHTML = '<div class="card"><p>' + (res.message || "データ取得に失敗しました") + '</p></div>';
+        return;
+      }
+      currentMonthlyData = res.data;
+      if (currentUser.role === "admin") {
+        renderAdminDashboard();
+      } else {
+        renderStaffDashboard();
+      }
+    }
+
+    // ===== スタッフ画面 =====
+    function renderStaffDashboard() {
+      const app = document.getElementById("app");
+      const month = currentMonthlyData.month;
+      const dates = currentMonthlyData.dates || [];
+      const staffDates = dates.filter(function (d) {
+        return d.adminAvailability !== "不参加";
+      });
+      const answersSummary = currentMonthlyData.answersSummary || {};
+      const userAnswers = currentMonthlyData.userAnswers || {};
+
+      const deadlineDisp = formatDeadline(month.deadlineIso);
+      const isLocked = !!month.answersLocked;
+
+      app.innerHTML = "";
+
+      // ヘッダー
+      const headerHtml =
+        '<div class="card">' +
+          '<h2>スタッフダッシュボード</h2>' +
+          '<p>社員番号: ' + currentUser.userId + '<\/p>' +
+          '<p>対象月：<select id="staffMonthSelect"><\/select><\/p>' +
+          '<p>締め切り: ' + deadlineDisp + (isLocked ? "（回答受付終了）" : "") + '</p>' +
+          (month.finalDate
+            ? '<p>確定日程: ' + formatFinalLabel(month.finalDate) + '</p>'
+            : '<p>確定日程: 未確定</p>') +
+          '<div style="margin-top:8px;">' +
+            '<button class="btn-secondary" id="logoutBtn">ログアウト</button>' +
+            '<button id="allParticipateBtn" style="margin-left:8px;">全日程を参加にする</button>' +
+          '</div>' +
+        '</div>';
+
+      const headerCard = createElement(headerHtml);
+      app.appendChild(headerCard);
+
+      // 対象月選択（スタッフ用）
+      const staffMonthSelect = document.getElementById("staffMonthSelect");
+      const baseMonthStaff = currentMonthId;
+      const staffMonthIds = [];
+      for (let offset = -1; offset <= 2; offset++) {
+        staffMonthIds.push(shiftMonth(baseMonthStaff, offset));
+      }
+      staffMonthIds.forEach(function (id) {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = id;
+        if (id === currentMonthId) opt.selected = true;
+        staffMonthSelect.appendChild(opt);
+      });
+      staffMonthSelect.addEventListener("change", async function (e) {
+        currentMonthId = e.target.value;
+        await loadMonthlyData();
+      });
+
+      document.getElementById("logoutBtn").addEventListener("click", function () {
+        currentUser = null;
+        currentMonthlyData = null;
+        renderLogin();
+      });
+
+      document.getElementById("allParticipateBtn").addEventListener("click", async function () {
+        const monthLocal = currentMonthlyData.month;
+        const nowBulk = new Date();
+        if (monthLocal.finalDate) {
+          showMessage("最終日程確定後は一括選択できません");
+          return;
+        }
+        if (monthLocal.answersLocked) {
+          showMessage("締め切り後のため一括選択はできません");
+          return;
+        }
+        if (monthLocal.deadlineIso) {
+          const ddl = new Date(monthLocal.deadlineIso);
+          if (nowBulk > ddl) {
+            showMessage("締め切り後のため一括選択はできません");
+            return;
+          }
+        }
+        const slotIds = (currentMonthlyData.dates || [])
+          .filter(function (d) {
+            return d.adminAvailability !== "不参加";
+          })
+          .map(function (d) {
+            return d.id;
+          });
+        if (!slotIds.length) {
+          showMessage("参加可能な候補日がありません");
+          return;
+        }
+        await submitStaffAnswerBulk(slotIds, "参加");
+      });
+
+      // 候補日リスト
+      const listCard = createElement(
+        '<div class="card">' +
+          '<h3>今月の候補日</h3>' +
+          '<div id="staffDateList"></div>' +
+        '</div>'
+      );
+      app.appendChild(listCard);
+
+      const container = listCard.querySelector("#staffDateList");
+      const now = new Date();
+
+      staffDates
+        .slice()
+        .sort(function (a, b) {
+          const aa = a.date + " " + a.startTime;
+          const bb = b.date + " " + b.startTime;
+          return aa < bb ? -1 : aa > bb ? 1 : 0;
+        })
+        .forEach(function (d) {
+          const adminAv = d.adminAvailability || "未設定";
+          const isAdminOff = adminAv === "不参加";
+
+          const rowHtml =
+            '<div class="date-row ' + (isAdminOff ? "disabled" : "") + '">' +
+              '<div class="date-label">' +
+                formatDateJP(d.date) +
+                " " +
+                d.startTime +
+                "〜" +
+                d.endTime +
+                '<span class="badge badge-admin-off">管理者: ' + adminAv + "</span>" +
+              "</div>" +
+              '<div class="button-group"></div>' +
+              '<div class="badge" id="myAnswer_' + d.id + '"></div>' +
+            "</div>";
+
+          const row = createElement(rowHtml);
+          const btnGroup = row.querySelector(".button-group");
+
+          const btnLabels = [
+            { key: "参加", label: "参加" },
+            { key: "不参加", label: "不参加" },
+            { key: "未定", label: "未定" }
+          ];
+
+          let disabled = isLocked || isAdminOff || !!month.finalDate;
+          if (month.deadlineIso) {
+            const ddl = new Date(month.deadlineIso);
+            if (now > ddl) disabled = true;
+          }
+
+          btnLabels.forEach(function (b) {
+            const btn = document.createElement("button");
+            btn.textContent = b.label;
+            btn.disabled = disabled;
+            btn.addEventListener("click", function () {
+              submitStaffAnswer(d.id, b.key);
+            });
+            btnGroup.appendChild(btn);
+          });
+
+          const myAnswerSpan = row.querySelector("#myAnswer_" + d.id);
+          const ans = userAnswers[d.id];
+          if (ans) {
+            let cls = "badge-undecided";
+            if (ans === "参加") cls = "badge-participate";
+            if (ans === "不参加") cls = "badge-absent";
+            myAnswerSpan.className = "badge " + cls;
+            myAnswerSpan.textContent = "あなたの回答: " + ans;
+          } else {
+            myAnswerSpan.textContent = "あなたの回答: 未回答";
+          }
+
+          container.appendChild(row);
+        });
+
+      // 集計結果テーブル
+      const aggCard = createElement(
+        '<div class="card">' +
+          '<h3>集計結果</h3>' +
+          '<table class="table">' +
+            '<thead>' +
+              '<tr>' +
+                '<th>日時</th>' +
+                '<th>参加</th>' +
+                '<th>不参加</th>' +
+                '<th>未定</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody id="staffAggTableBody"></tbody>' +
+          '</table>' +
+        '</div>'
+      );
+      app.appendChild(aggCard);
+
+      const tbody = aggCard.querySelector("#staffAggTableBody");
+      const sortedStaffDates = staffDates
+        .slice()
+        .sort(function (a, b) {
+          const aa = a.date + " " + a.startTime;
+          const bb = b.date + " " + b.startTime;
+          return aa < bb ? -1 : aa > bb ? 1 : 0;
+        });
+
+      // 参加者数の最大値を算出
+      let maxParticipants = 0;
+      sortedStaffDates.forEach(function (d) {
+        const s = answersSummary[d.id] || { 参加: 0, 不参加: 0, 未定: 0 };
+        const p = s["参加"] || 0;
+        if (p > maxParticipants) {
+          maxParticipants = p;
+        }
+      });
+
+      // 最大参加人数のスロットのみ表示（全員未回答の場合は全て表示）
+      const targetStaffDates = maxParticipants > 0
+        ? sortedStaffDates.filter(function (d) {
+            const s = answersSummary[d.id] || { 参加: 0, 不参加: 0, 未定: 0 };
+            return (s["参加"] || 0) === maxParticipants;
+          })
+        : sortedStaffDates;
+
+      targetStaffDates.forEach(function (d) {
+        const s = answersSummary[d.id] || { 参加: 0, 不参加: 0, 未定: 0 };
+        const tr = document.createElement("tr");
+
+        const td1 = document.createElement("td");
+        td1.textContent = formatDateJP(d.date) + " " + d.startTime + "〜" + d.endTime;
+        tr.appendChild(td1);
+
+        const td2 = document.createElement("td");
+        td2.textContent = s["参加"] || 0;
+        tr.appendChild(td2);
+
+        const td3 = document.createElement("td");
+        td3.textContent = s["不参加"] || 0;
+        tr.appendChild(td3);
+
+        const td4 = document.createElement("td");
+        td4.textContent = s["未定"] || 0;
+        tr.appendChild(td4);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function submitStaffAnswer(slotId, answer) {
+      if (currentMonthlyData && currentMonthlyData.month && currentMonthlyData.month.finalDate) {
+        showMessage("最終日程確定後は回答を変更できません");
+        return;
+      }
+      const body = {
+        monthId: currentMonthId,
+        slotId: slotId,
+        userId: currentUser.userId,
+        answer: answer
+      };
+      const res = await apiPost("/submitAnswer", body);
+      if (!res.success) {
+        showMessage(res.message || "回答送信に失敗しました");
+        return;
+      }
+      await loadMonthlyData();
+    }
+
+    async function submitStaffAnswerBulk(slotIds, answer) {
+      if (currentMonthlyData && currentMonthlyData.month && currentMonthlyData.month.finalDate) {
+        showMessage("最終日程確定後は回答を変更できません");
+        return;
+      }
+      for (let i = 0; i < slotIds.length; i++) {
+        const slotId = slotIds[i];
+        const body = {
+          monthId: currentMonthId,
+          slotId: slotId,
+          userId: currentUser.userId,
+          answer: answer
+        };
+        const res = await apiPost("/submitAnswer", body);
+        if (!res.success) {
+          showMessage(res.message || "回答送信に失敗しました");
+          return;
+        }
+      }
+      await loadMonthlyData();
+    }
+
+    // ===== 管理者画面 =====
+    function renderAdminDashboard() {
+      const app = document.getElementById("app");
+      const month = currentMonthlyData.month;
+      const dates = currentMonthlyData.dates || [];
+      const answersSummary = currentMonthlyData.answersSummary || {};
+
+      const deadlineDisp = formatDeadline(month.deadlineIso);
+      const isLocked = !!month.answersLocked;
+
+      app.innerHTML = "";
+
+      // ヘッダー
+      const headerHtml =
+        '<div class="card">' +
+          '<h2>管理者ダッシュボード</h2>' +
+          '<p>社員番号: ' + currentUser.userId + '</p>' +
+          '<p>対象月：<select id="monthSelect"></select></p>' +
+          '<p>締め切り: ' + deadlineDisp + (isLocked ? "（回答受付終了）" : "") + '</p>' +
+          (month.finalDate
+            ? '<p>確定日程: ' + formatFinalLabel(month.finalDate) + '</p>'
+            : '<p>確定日程: 未確定</p>') +
+          '<button class="btn-secondary" id="logoutBtn">ログアウト</button>' +
+        '</div>';
+
+      const headerCard = createElement(headerHtml);
+      app.appendChild(headerCard);
+
+      document.getElementById("logoutBtn").addEventListener("click", function () {
+        currentUser = null;
+        currentMonthlyData = null;
+        renderLogin();
+      });
+
+      // 対象月プルダウン
+      const monthSelect = document.getElementById("monthSelect");
+      const baseMonth = currentMonthId;
+      const monthIds = [];
+      for (let offset = -1; offset <= 2; offset++) {
+        monthIds.push(shiftMonth(baseMonth, offset));
+      }
+      monthIds.forEach(function (id) {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = id;
+        if (id === currentMonthId) opt.selected = true;
+        monthSelect.appendChild(opt);
+      });
+      monthSelect.addEventListener("change", async function (e) {
+        currentMonthId = e.target.value;
+        await loadMonthlyData();
+      });
+
+      // 候補日追加 + 一括参加
+      const candidateCard = createElement(
+        '<div class="card">' +
+          '<h3>候補日</h3>' +
+          '<div style="margin-bottom:8px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">' +
+            '<label>日付：<input type="date" id="newCandidateDate" /></label>' +
+            '<label>開始：<input type="time" id="newCandidateStart" value="10:00" /></label>' +
+            '<label>終了：<input type="time" id="newCandidateEnd" value="11:00" /></label>' +
+            '<button id="addCandidateBtn">追加</button>' +
+          '</div>' +
+          '<div style="margin-bottom:8px;">' +
+            '<button id="adminAllParticipateBtn">全日程を参加にする</button>' +
+          '</div>' +
+          '<div id="adminDateList"></div>' +
+        '</div>'
+      );
+      app.appendChild(candidateCard);
+
+      document.getElementById("addCandidateBtn").addEventListener("click", async function () {
+        const dateVal = document.getElementById("newCandidateDate").value;
+        const startVal = document.getElementById("newCandidateStart").value;
+        const endVal = document.getElementById("newCandidateEnd").value;
+        if (!dateVal || !startVal || !endVal) {
+          showMessage("日付と開始・終了時間を入力してください");
+          return;
+        }
+        if (dateVal.indexOf(currentMonthId + "-") !== 0) {
+          showMessage("対象月 (" + currentMonthId + ") の日付を入力してください");
+          return;
+        }
+        if (startVal >= endVal) {
+          showMessage("開始時間は終了時間より前にしてください");
+          return;
+        }
+        const res = await apiPost("/setCandidateDates", {
+          userId: currentUser.userId,
+          monthId: currentMonthId,
+          date: dateVal,
+          startTime: startVal,
+          endTime: endVal
+        });
+        if (!res.success) {
+          showMessage(res.message || "候補日の追加に失敗しました");
+          return;
+        }
+        await loadMonthlyData();
+      });
+
+      document.getElementById("adminAllParticipateBtn").addEventListener("click", async function () {
+        if (!dates.length) {
+          showMessage("候補日がありません");
+          return;
+        }
+        const slotIds = dates.map(function (d) {
+          return d.id;
+        });
+        await setAdminAvailabilityBulk(slotIds, "参加");
+      });
+
+      const adminDateList = candidateCard.querySelector("#adminDateList");
+      dates
+        .slice()
+        .sort(function (a, b) {
+          const aa = a.date + " " + a.startTime;
+          const bb = b.date + " " + b.startTime;
+          return aa < bb ? -1 : aa > bb ? 1 : 0;
+        })
+        .forEach(function (d) {
+          const rowHtml =
+            '<div class="date-row">' +
+              '<div class="date-label">' +
+                formatDateJP(d.date) +
+                " " +
+                d.startTime +
+                "〜" +
+                d.endTime +
+              '</div>' +
+              '<div>' +
+                '<label>管理者の参加可否：' +
+                  '<select data-id="' + d.id + '">' +
+                    '<option value="未設定">未設定</option>' +
+                    '<option value="参加">参加</option>' +
+                    '<option value="不参加">不参加</option>' +
+                  '</select>' +
+                '</label>' +
+              '</div>' +
+            '</div>';
+
+          const row = createElement(rowHtml);
+          const select = row.querySelector("select");
+          select.value = d.adminAvailability || "未設定";
+          select.addEventListener("change", async function (e) {
+            const availability = e.target.value;
+            const slotId = e.target.getAttribute("data-id");
+            const res = await apiPost("/setAdminAvailability", {
+              userId: currentUser.userId,
+              monthId: currentMonthId,
+              slotId: slotId,
+              availability: availability
+            });
+            if (!res.success) {
+              showMessage(res.message || "管理者可否の更新に失敗しました");
+            } else {
+              await loadMonthlyData();
+            }
+          });
+          adminDateList.appendChild(row);
+        });
+
+      // 締め切り設定
+      const deadlineCard = createElement(
+        '<div class="card">' +
+          '<h3>回答締め切り</h3>' +
+          '<p>現在: ' + deadlineDisp + '</p>' +
+          '<div>' +
+            '<label>締め切り日：<input type="date" id="deadlineInput" /></label>' +
+            '<button id="setDeadlineBtn">設定</button>' +
+          '</div>' +
+        '</div>'
+      );
+      app.appendChild(deadlineCard);
+
+      document.getElementById("setDeadlineBtn").addEventListener("click", async function () {
+        const val = document.getElementById("deadlineInput").value;
+        if (!val) {
+          showMessage("締め切り日を入力してください");
+          return;
+        }
+        const datePart = val; // YYYY-MM-DD
+        // 締め切り日は対象月とは別月でも可（例：2026-01 の会議に対して 2025-12-31 を締め切りにする）
+        const deadlineStr = datePart + " 23:59"; // 時刻は必ず 23:59 固定
+        const res = await apiPost("/setDeadline", {
+          userId: currentUser.userId,
+          monthId: currentMonthId,
+          deadline: deadlineStr
+        });
+        if (!res.success) {
+          showMessage(res.message || "締め切り設定に失敗しました");
+          return;
+        }
+        await loadMonthlyData();
+      });
+
+      // 集計テーブル（管理者）
+      const aggCard = createElement(
+        '<div class="card">' +
+          '<h3>集計</h3>' +
+          '<table class="table">' +
+            '<thead>' +
+              '<tr>' +
+                '<th>日時</th>' +
+                '<th>参加</th>' +
+                '<th>不参加</th>' +
+                '<th>未定</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody id="adminAggTableBody"></tbody>' +
+          '</table>' +
+        '</div>'
+      );
+      app.appendChild(aggCard);
+
+      const tbody2 = aggCard.querySelector("#adminAggTableBody");
+      const sortedAdminDates = dates
+        .slice()
+        .sort(function (a, b) {
+          const aa = a.date + " " + a.startTime;
+          const bb = b.date + " " + b.startTime;
+          return aa < bb ? -1 : aa > bb ? 1 : 0;
+        });
+
+      // 参加者数の最大値
+      let maxParticipantsAdmin = 0;
+      sortedAdminDates.forEach(function (d) {
+        const s = answersSummary[d.id] || { 参加: 0, 不参加: 0, 未定: 0 };
+        const p = s["参加"] || 0;
+        if (p > maxParticipantsAdmin) {
+          maxParticipantsAdmin = p;
+        }
+      });
+
+      const targetAdminDates = maxParticipantsAdmin > 0
+        ? sortedAdminDates.filter(function (d) {
+            const s = answersSummary[d.id] || { 参加: 0, 不参加: 0, 未定: 0 };
+            return (s["参加"] || 0) === maxParticipantsAdmin;
+          })
+        : sortedAdminDates;
+
+      targetAdminDates.forEach(function (d) {
+        const s = answersSummary[d.id] || { 参加: 0, 不参加: 0, 未定: 0 };
+        const tr = document.createElement("tr");
+
+        const td1 = document.createElement("td");
+        td1.textContent = formatDateJP(d.date) + " " + d.startTime + "〜" + d.endTime;
+        tr.appendChild(td1);
+
+        const td2 = document.createElement("td");
+        td2.textContent = s["参加"] || 0;
+        tr.appendChild(td2);
+
+        const td3 = document.createElement("td");
+        td3.textContent = s["不参加"] || 0;
+        tr.appendChild(td3);
+
+        const td4 = document.createElement("td");
+        td4.textContent = s["未定"] || 0;
+        tr.appendChild(td4);
+
+        tbody2.appendChild(tr);
+      });
+
+      // 最終日程確定
+      var optionsHtml = '<option value="">選択してください</option>';
+      dates
+        .slice()
+        .sort(function (a, b) {
+          const aa = a.date + " " + a.startTime;
+          const bb = b.date + " " + b.startTime;
+          return aa < bb ? -1 : aa > bb ? 1 : 0;
+        })
+        .forEach(function (d) {
+          var value = d.date + " " + d.startTime + "-" + d.endTime;
+          var label = formatDateJP(d.date) + " " + d.startTime + "〜" + d.endTime;
+          optionsHtml += '<option value="' + value + '">' + label + '</option>';
+        });
+
+      const finalCard = createElement(
+        '<div class="card">' +
+          '<h3>最終日程の確定</h3>' +
+          '<div>' +
+            '<label>確定日：<select id="finalDateSelect">' + optionsHtml + '</select></label>' +
+            '<button id="setFinalDateBtn">最終日程を確定する</button>' +
+          '</div>' +
+        '</div>'
+      );
+      app.appendChild(finalCard);
+
+      document.getElementById("setFinalDateBtn").addEventListener("click", async function () {
+        const sel = document.getElementById("finalDateSelect").value;
+        if (!sel) {
+          showMessage("確定日を選択してください");
+          return;
+        }
+        const res = await apiPost("/setFinalDate", {
+          userId: currentUser.userId,
+          monthId: currentMonthId,
+          finalDate: sel
+        });
+        if (!res.success) {
+          showMessage(res.message || "最終日程の確定に失敗しました");
+          return;
+        }
+        await loadMonthlyData();
+      });
+    }
+
+    async function setAdminAvailabilityBulk(slotIds, availability) {
+      for (let i = 0; i < slotIds.length; i++) {
+        const slotId = slotIds[i];
+        const res = await apiPost("/setAdminAvailability", {
+          userId: currentUser.userId,
+          monthId: currentMonthId,
+          slotId: slotId,
+          availability: availability
+        });
+        if (!res.success) {
+          showMessage(res.message || "管理者可否の更新に失敗しました");
+          return;
+        }
+      }
+      await loadMonthlyData();
+    }
+
+    // ===== 起動 =====
+    window.addEventListener("DOMContentLoaded", function () {
+      renderLogin();
+    });
+  </script>
+</body>
+</html>
