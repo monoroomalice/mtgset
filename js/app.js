@@ -439,18 +439,24 @@ function renderHistory() {
     return;
   }
 
+  const accounts = loadAccounts();
   tbody.innerHTML = filtered.map(tx => {
     const catInfo = tx.type === "income"
       ? getIncomeCategoryById(tx.categoryId)
       : getExpenseCategoryById(tx.categoryId);
-    const catName = catInfo?.item?.name || tx.categoryId;
-    const accName = loadAccounts().find(a => a.id === tx.accountId)?.name || "";
+    const catName  = catInfo?.item?.name || tx.categoryId;
+    const acc      = accounts.find(a => a.id === tx.accountId);
+    const accName  = acc?.name || "";
+    const accIcon  = acc?.type === "cash" ? "💴" : acc?.type === "savings" ? "🏦" : "💳";
+    const accTag   = accName
+      ? `<span class="acc-tag">${accIcon} ${accName}</span>`
+      : "";
 
     return `
       <tr>
         <td>${formatDate(tx.date)}</td>
         <td><span class="badge ${tx.type}">${tx.type === "income" ? "収入" : "支出"}</span></td>
-        <td class="cat-cell">${catName}</td>
+        <td class="cat-cell">${catName}${accTag}</td>
         <td class="amount-cell ${tx.type}">${tx.type === "income" ? "+" : "−"}${formatCurrency(tx.amount)}</td>
         <td class="memo-cell">${tx.memo || ""}</td>
         <td class="action-cell">
@@ -660,14 +666,15 @@ function renderAccounts() {
     const inflow  = txs.filter(t => t.type === "income" && t.accountId === acc.id).reduce((s,t) => s+t.amount, 0);
     const outflow = txs.filter(t => t.type === "expense" && t.accountId === acc.id).reduce((s,t) => s+t.amount, 0);
     const balance = (acc.initialBalance || 0) + inflow - outflow;
-    const icon    = acc.type === "savings" ? "🏦" : "💳";
+    const icon  = acc.type === "savings" ? "🏦" : acc.type === "cash" ? "💴" : "💳";
+    const label = acc.type === "savings" ? "積立口座" : acc.type === "cash" ? "現金" : "普通口座";
     return `
       <div class="account-card">
         <div class="account-header">
           <span class="account-icon">${icon}</span>
           <div class="account-info">
             <div class="account-name">${acc.name}</div>
-            <div class="account-type">${acc.type === "savings" ? "積立口座" : "普通口座"}</div>
+            <div class="account-type">${label}</div>
           </div>
           <div class="account-balance ${balance >= 0 ? "positive" : "negative"}">
             ${formatCurrency(balance)}

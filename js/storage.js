@@ -10,11 +10,13 @@ const STORAGE_KEYS = {
 
 // デフォルト口座
 const DEFAULT_ACCOUNTS = [
-  { id: "acc_joint",    name: "家族口座（共同）",    type: "checking", initialBalance: 0 },
-  { id: "acc_husband",  name: "夫の口座",            type: "checking", initialBalance: 0 },
-  { id: "acc_wife_fc",  name: "私：FC教室口座",      type: "checking", initialBalance: 0 },
-  { id: "acc_wife_pt",  name: "私：アルバイト口座",  type: "checking", initialBalance: 0 },
-  { id: "acc_savings",  name: "特別積立口座",         type: "savings",  initialBalance: 0 }
+  { id: "acc_joint",        name: "家族口座（共同）",        type: "checking", initialBalance: 0 },
+  { id: "acc_husband",      name: "夫の口座",                type: "checking", initialBalance: 0 },
+  { id: "acc_wife_kumon",   name: "私：公文用口座",          type: "checking", initialBalance: 0 },
+  { id: "acc_wife_biz",     name: "私：事業用口座",          type: "checking", initialBalance: 0 },
+  { id: "acc_wife_salary",  name: "私：給与受取口座",        type: "checking", initialBalance: 0 },
+  { id: "acc_savings",      name: "特別積立口座",            type: "savings",  initialBalance: 0 },
+  { id: "acc_cash",         name: "現金",                    type: "cash",     initialBalance: 0 }
 ];
 
 // =====================================================
@@ -99,8 +101,16 @@ function saveAccounts(accounts) {
 }
 
 function initAccounts() {
-  if (!localStorage.getItem(STORAGE_KEYS.ACCOUNTS)) {
+  const existing = loadAccounts();
+  if (existing.length === 0) {
     saveAccounts(DEFAULT_ACCOUNTS);
+    return;
+  }
+  // 新しいデフォルト口座を既存データに追加（既存取引を壊さない）
+  const existingIds = existing.map(a => a.id);
+  const toAdd = DEFAULT_ACCOUNTS.filter(a => !existingIds.includes(a.id));
+  if (toAdd.length > 0) {
+    saveAccounts([...existing, ...toAdd]);
   }
 }
 
@@ -182,8 +192,8 @@ function seedSampleData() {
     // 今月の収入
     { date: `${thisYM}-25`, type: "income",  categoryId: "husband_base",     amount: 280000, accountId: "acc_husband", memo: "本給" },
     { date: `${thisYM}-25`, type: "income",  categoryId: "husband_variable", amount: 35000,  accountId: "acc_husband", memo: "残業代" },
-    { date: `${thisYM}-20`, type: "income",  categoryId: "wife_fc",          amount: 85000,  accountId: "acc_wife_fc", memo: "FC教室3月分" },
-    { date: `${thisYM}-28`, type: "income",  categoryId: "wife_partA",       amount: 42000,  accountId: "acc_wife_pt", memo: "バイトA給与" },
+    { date: `${thisYM}-20`, type: "income",  categoryId: "wife_fc",          amount: 85000,  accountId: "acc_wife_biz",    memo: "FC教室3月分" },
+    { date: `${thisYM}-28`, type: "income",  categoryId: "wife_partA",       amount: 42000,  accountId: "acc_wife_salary", memo: "バイトA給与" },
 
     // 今月の支出（固定費）
     { date: `${thisYM}-27`, type: "expense", categoryId: "housing_loan",     amount: 85000,  accountId: "acc_joint",   memo: "住宅ローン" },
