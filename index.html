@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="description" content="家族の収支を一元管理する家計簿アプリ">
+  <title>家計簿 - わが家の収支管理</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ============ ヘッダー ============ -->
+<header class="app-header">
+  <div class="app-title">
+    <span>🏠</span> わが家の家計簿
+  </div>
+  <div class="month-nav">
+    <button id="month-prev" aria-label="前月">‹</button>
+    <select id="month-selector" aria-label="対象月選択"></select>
+    <button id="month-next" aria-label="次月">›</button>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" id="settings-btn" aria-label="設定">⚙️</button>
+  </div>
+</header>
+
+<!-- ============ メインコンテンツ ============ -->
+<main class="main-content">
+
+  <!-- ─── タブ1: ダッシュボード ─── -->
+  <section id="tab-dashboard" class="tab-content active">
+
+    <!-- 月次サマリー -->
+    <div class="summary-grid">
+      <div class="summary-card income">
+        <div class="summary-label">🟢 収入合計</div>
+        <div class="summary-value" id="dash-income">¥0</div>
+      </div>
+      <div class="summary-card expense">
+        <div class="summary-label">🔴 支出合計</div>
+        <div class="summary-value" id="dash-expense">¥0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">💰 収支差額</div>
+        <div class="summary-value" id="dash-balance">¥0</div>
+      </div>
+    </div>
+
+    <!-- ① 収入と固定費の相殺ビュー -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">⚖️</span>
+        収入と固定費の相殺チェック
+      </div>
+
+      <div class="fixed-header-row">
+        <div class="fixed-box">
+          <div class="fixed-box-label">夫：本給（固定収入）</div>
+          <div class="fixed-box-value" id="fixed-husband-income">¥0</div>
+        </div>
+        <div class="fixed-box expense">
+          <div class="fixed-box-label">固定費合計</div>
+          <div class="fixed-box-value" id="fixed-expense-total">¥0</div>
+        </div>
+      </div>
+
+      <div class="fixed-diff-row">
+        <div class="fixed-diff-label">固定給で固定費をカバーした残り</div>
+        <div class="fixed-diff" id="fixed-diff">¥0</div>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-info">
+          <span>固定費 / 本給</span>
+          <span id="fixed-bar-pct">0%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" id="fixed-bar-fill" style="width:0%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-sub);margin-top:3px;">
+          <span>🟢 余裕あり</span>
+          <span>🟡 注意 80%〜</span>
+          <span>🔴 超過</span>
+        </div>
+      </div>
+
+      <div class="breakdown-list" id="fixed-breakdown"></div>
+    </div>
+
+    <!-- ② 犬の通院費推移 -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">🐾</span>
+        犬の通院費推移（過去12ヶ月）
+      </div>
+      <div class="pet-stats">
+        <div class="pet-stat-box">
+          <div class="pet-stat-label">年間累計</div>
+          <div class="pet-stat-value" id="pet-annual-total">¥0</div>
+        </div>
+        <div class="pet-stat-box">
+          <div class="pet-stat-label">月平均</div>
+          <div class="pet-stat-value" id="pet-avg-monthly">¥0</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="petMedicalChart"></canvas>
+      </div>
+      <p style="font-size:.73rem;color:var(--text-sub);margin-top:8px;text-align:center;">
+        🟢 〜¥8,000 &nbsp;|&nbsp; 🟡 〜¥15,000 &nbsp;|&nbsp; 🔴 ¥15,000〜
+      </p>
+    </div>
+
+    <!-- 今月の収入内訳 -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">📊</span>
+        今月の収入内訳
+      </div>
+      <div id="dash-income-breakdown"></div>
+    </div>
+
+  </section>
+
+  <!-- ─── タブ2: 収入入力 ─── -->
+  <section id="tab-income" class="tab-content">
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">💚</span>
+        収入を登録する
+      </div>
+      <form id="income-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="income-date">日付<span class="required">*</span></label>
+            <input type="date" id="income-date" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="income-amount">金額（円）<span class="required">*</span></label>
+            <input type="number" id="income-amount" class="form-control"
+                   placeholder="例: 280000" min="1" required inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="income-group">大項目<span class="required">*</span></label>
+          <select id="income-group" class="form-control" required>
+            <option value="">大項目を選択</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="income-category">中項目<span class="required">*</span></label>
+          <select id="income-category" class="form-control" disabled required>
+            <option value="">中項目を選択</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="income-account">入金口座</label>
+          <select id="income-account" class="form-control">
+            <option value="">口座を選択（任意）</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="income-memo">メモ</label>
+          <input type="text" id="income-memo" class="form-control"
+                 placeholder="例: 3月分給与、残業30時間分">
+        </div>
+
+        <button type="submit" class="btn-submit income">✅ 収入を登録する</button>
+      </form>
+    </div>
+
+    <!-- 収入カテゴリ一覧（参考） -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">📋</span>
+        収入カテゴリ一覧
+      </div>
+      <div style="font-size:.82rem;">
+        <div class="section-title" style="margin-top:0">夫・給与</div>
+        <div style="padding:4px 0;color:var(--text-sub)">夫：本給（固定分）｜ 夫：変動給（残業・シフト）</div>
+        <div class="section-title">私・事業</div>
+        <div style="padding:4px 0;color:var(--text-sub)">私：FC教室利益｜ 私：動画編集</div>
+        <div class="section-title">私・給与/在宅</div>
+        <div style="padding:4px 0;color:var(--text-sub)">私：在宅ワーク（時給）｜ 私：アルバイトA｜ 私：アルバイトB</div>
+        <p style="margin-top:10px;font-size:.75rem;color:var(--text-sub)">
+          💡 アルバイトは給与明細の「差引支給額（手取り）」を入力してください。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── タブ3: 支出入力 ─── -->
+  <section id="tab-expense" class="tab-content">
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">❤️</span>
+        支出を登録する
+      </div>
+      <form id="expense-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="expense-date">日付<span class="required">*</span></label>
+            <input type="date" id="expense-date" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="expense-amount">金額（円）<span class="required">*</span></label>
+            <input type="number" id="expense-amount" class="form-control"
+                   placeholder="例: 85000" min="1" required inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="expense-group">大項目<span class="required">*</span></label>
+          <select id="expense-group" class="form-control" required>
+            <option value="">大項目を選択</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="expense-subgroup">中分類<span class="required">*</span></label>
+          <select id="expense-subgroup" class="form-control" disabled required>
+            <option value="">中分類を選択</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="expense-category">詳細カテゴリ<span class="required">*</span></label>
+          <select id="expense-category" class="form-control" disabled required>
+            <option value="">詳細カテゴリを選択</option>
+          </select>
+          <div class="form-note" id="expense-note"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="expense-account">支払口座</label>
+          <select id="expense-account" class="form-control">
+            <option value="">口座を選択（任意）</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="expense-memo">メモ</label>
+          <input type="text" id="expense-memo" class="form-control"
+                 placeholder="例: 保険適用後の実費、通院2回分">
+        </div>
+
+        <button type="submit" class="btn-submit">✅ 支出を登録する</button>
+      </form>
+    </div>
+
+    <!-- 支出カテゴリ早見表 -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">📋</span>
+        支出カテゴリ早見表
+      </div>
+      <div style="font-size:.82rem;">
+        <div class="section-title" style="margin-top:0;color:#4338CA">🔒 固定費</div>
+        <div style="padding:4px 0;color:var(--text-sub)">住宅ローン｜電気代（オール電化）｜水道代｜スマホ代｜ペット保険料｜各種保険</div>
+        <div class="section-title" style="color:#059669">🔄 変動費・生活費</div>
+        <div style="padding:4px 0;color:var(--text-sub)">犬：動物病院｜犬：フード・消耗品｜娘：教育・習い事｜娘：衣服・イベント｜医療費｜お小遣い｜予備費</div>
+        <div class="section-title" style="color:#D97706">🏦 特別支出積立</div>
+        <div style="padding:4px 0;color:var(--text-sub)">税金積立｜年払い保険料積立｜車検・メンテナンス積立</div>
+        <p style="margin-top:10px;font-size:.75rem;color:var(--text-sub)">
+          💡 特別支出積立は「特別積立口座」への移動として記録するのがコツ。月末に黒字が維持できます。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── タブ4: 取引履歴 ─── -->
+  <section id="tab-history" class="tab-content">
+    <div class="card" style="padding-bottom:0">
+      <div class="card-title">
+        <span class="title-icon">📅</span>
+        取引履歴
+      </div>
+      <div class="filter-row">
+        <span class="filter-label">表示：</span>
+        <select id="history-filter" class="filter-select">
+          <option value="all">すべて</option>
+          <option value="income">収入のみ</option>
+          <option value="expense">支出のみ</option>
+        </select>
+      </div>
+      <div class="history-table-wrap">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>日付</th>
+              <th>種別</th>
+              <th>カテゴリ</th>
+              <th>金額</th>
+              <th>メモ</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── タブ5: 月次レポート ─── -->
+  <section id="tab-report" class="tab-content">
+
+    <!-- サマリー -->
+    <div class="report-summary">
+      <div class="report-item">
+        <div class="report-item-label">🟢 収入</div>
+        <div class="report-item-value positive" id="report-income">¥0</div>
+      </div>
+      <div class="report-item">
+        <div class="report-item-label">🔴 支出</div>
+        <div class="report-item-value negative" id="report-expense">¥0</div>
+      </div>
+      <div class="report-item">
+        <div class="report-item-label">💰 収支</div>
+        <div class="report-item-value" id="report-balance">¥0</div>
+      </div>
+    </div>
+
+    <!-- 収支推移チャート -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">📈</span>
+        収支推移（直近6ヶ月）
+      </div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 支出内訳 -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">🥧</span>
+        支出内訳（グループ別）
+      </div>
+      <div class="chart-wrap" style="height:220px">
+        <canvas id="expensePieChart"></canvas>
+      </div>
+    </div>
+
+    <!-- カテゴリ別詳細 -->
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">📋</span>
+        カテゴリ別集計
+      </div>
+      <div id="report-detail"></div>
+    </div>
+
+  </section>
+
+  <!-- ─── タブ6: 口座管理 ─── -->
+  <section id="tab-accounts" class="tab-content">
+    <div class="card">
+      <div class="card-title">
+        <span class="title-icon">🏦</span>
+        口座管理
+      </div>
+      <p style="font-size:.82rem;color:var(--text-sub);margin-bottom:12px;">
+        初期残高を設定すると、取引の入出金を反映した現在残高が表示されます。<br>
+        確定申告時の事業口座と家計口座の分離にお役立てください。
+      </p>
+    </div>
+    <div id="accounts-list"></div>
+  </section>
+
+</main>
+
+<!-- ============ ボトムナビゲーション ============ -->
+<nav class="bottom-nav">
+  <button class="nav-tab active" data-tab="dashboard">
+    <span class="tab-icon">🏠</span>
+    ダッシュボード
+  </button>
+  <button class="nav-tab" data-tab="income">
+    <span class="tab-icon">💚</span>
+    収入入力
+  </button>
+  <button class="nav-tab" data-tab="expense">
+    <span class="tab-icon">❤️</span>
+    支出入力
+  </button>
+  <button class="nav-tab" data-tab="history">
+    <span class="tab-icon">📅</span>
+    履歴
+  </button>
+  <button class="nav-tab" data-tab="report">
+    <span class="tab-icon">📊</span>
+    レポート
+  </button>
+  <button class="nav-tab" data-tab="accounts">
+    <span class="tab-icon">🏦</span>
+    口座
+  </button>
+</nav>
+
+<!-- ============ 設定モーダル ============ -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">⚙️ 設定・管理</div>
+      <button class="modal-close" id="settings-close">✕</button>
+    </div>
+    <form id="settings-form">
+      <p style="font-size:.85rem;color:var(--text-sub);margin-bottom:16px;">
+        データはすべてこのブラウザ（localStorage）に保存されます。
+      </p>
+
+      <div class="card-title" style="font-size:.85rem;">📥 データ管理</div>
+      <div class="btn-row">
+        <button type="button" class="btn-secondary" id="export-csv-btn">
+          📤 CSVエクスポート
+        </button>
+        <button type="button" class="btn-danger" id="clear-data-btn">
+          🗑 全データ削除
+        </button>
+      </div>
+
+      <div style="margin-top:16px;padding:12px;background:#FEF3C7;border-radius:8px;font-size:.8rem;color:#92400E;">
+        <strong>💡 FPアドバイス</strong><br>
+        特別支出積立を「特別積立口座」への入金として記録することで、月末の収支が黒字に見え、モチベーション維持に繋がります！
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ トースト通知コンテナ ============ -->
+<div id="toast-container"></div>
+
+<!-- ============ Chart.js CDN ============ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<!-- ============ アプリスクリプト ============ -->
+<script src="js/categories.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
