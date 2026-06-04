@@ -25,10 +25,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function renderAll() {
-  renderDashboard();
-  renderHistory();
-  renderReport();
-  renderAccounts();
+  invalidateTxCache(); // 最新データを必ず取得
+  renderDashboard();   // ダッシュボードは常に更新
+  // 現在表示中のタブだけ追加で更新（全タブ再描画は重すぎる）
+  const tab = AppState.currentTab;
+  if (tab === "history")  renderHistory();
+  if (tab === "report")   renderReport();
+  if (tab === "accounts") renderAccounts();
 }
 
 // =====================================================
@@ -54,7 +57,8 @@ function switchTab(tab) {
     section.classList.toggle("active", section.id === `tab-${tab}`);
   });
 
-  // タブ切り替え時に再描画
+  // タブ切り替え時に再描画（キャッシュリセットで最新データを取得）
+  invalidateTxCache();
   if (tab === "dashboard") renderDashboard();
   if (tab === "history")   renderHistory();
   if (tab === "report")    renderReport();
@@ -347,6 +351,7 @@ function renderFixedBalanceView(ym, txs) {
 
 // ② 犬の通院費推移グラフ
 function renderPetMedicalChart() {
+  try {
   const data = getMonthlySumByCategory(PET_MEDICAL_ID, 12);
   const labels  = data.map(d => getYearMonthLabel(d.yearMonth).replace("年","年\n"));
   const amounts = data.map(d => d.amount);
@@ -395,6 +400,7 @@ function renderPetMedicalChart() {
       }
     }
   });
+  } catch (e) { console.warn("pet chart error:", e); }
 }
 
 // 収入内訳バー
@@ -502,6 +508,7 @@ function renderReport() {
 }
 
 function renderExpensePieChart(txs) {
+  try {
   const expenses = txs.filter(t => t.type === "expense");
   if (expenses.length === 0) return;
 
@@ -542,19 +549,22 @@ function renderExpensePieChart(txs) {
       }
     }
   });
+  } catch (e) { console.warn("pie chart error:", e); }
 }
 
 function renderMonthlyTrendChart() {
-  const today = new Date();
+  try {
+  const allTxs = loadTransactions(); // キャッシュ経由で1回だけロード
+  const today  = new Date();
   const months = 6;
   const incomeData  = [];
   const expenseData = [];
   const labels      = [];
 
   for (let i = months - 1; i >= 0; i--) {
-    const d  = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    const ym = formatYearMonth(d);
-    const txs = getTransactionsByMonth(ym);
+    const d   = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const ym  = formatYearMonth(d);
+    const txs = allTxs.filter(t => t.date.startsWith(ym));
     labels.push(getYearMonthLabel(ym).replace("年","年\n"));
     incomeData.push(txs.filter(t => t.type === "income").reduce((s,t) => s+t.amount, 0));
     expenseData.push(txs.filter(t => t.type === "expense").reduce((s,t) => s+t.amount, 0));
@@ -616,6 +626,7 @@ function renderMonthlyTrendChart() {
       }
     }
   });
+  } catch (e) { console.warn("trend chart error:", e); }
 }
 
 function renderDetailTable(txs) {

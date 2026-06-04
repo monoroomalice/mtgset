@@ -23,15 +23,26 @@ const DEFAULT_ACCOUNTS = [
 // トランザクション（取引）
 // =====================================================
 
+// JSON.parse を何度も呼ばないようにするレンダリングサイクル内キャッシュ
+let _txCache = null;
+
 function loadTransactions() {
+  if (_txCache !== null) return _txCache;
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-    return raw ? JSON.parse(raw) : [];
+    _txCache = raw ? JSON.parse(raw) : [];
+    return _txCache;
   } catch { return []; }
 }
 
 function saveTransactions(transactions) {
+  _txCache = transactions; // キャッシュも即時更新
   localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+}
+
+// 描画前にキャッシュをリセットして最新データを取得させる
+function invalidateTxCache() {
+  _txCache = null;
 }
 
 function addTransaction(tx) {
@@ -66,21 +77,18 @@ function getTransactionsByMonth(yearMonth) {
   return loadTransactions().filter(t => t.date.startsWith(yearMonth));
 }
 
-// 特定カテゴリ・期間の取引集計
-function sumByCategory(categoryId, yearMonth) {
-  return getTransactionsByMonth(yearMonth)
-    .filter(t => t.categoryId === categoryId)
-    .reduce((sum, t) => sum + t.amount, 0);
-}
-
-// 過去N ヶ月分の月別カテゴリ合計
+// 過去N ヶ月分の月別カテゴリ合計（loadTransactions は1回だけ呼ぶ）
 function getMonthlySumByCategory(categoryId, months = 12) {
+  const allTxs = loadTransactions(); // キャッシュ済みなので1回のみ
   const result = [];
-  const today = new Date();
+  const today  = new Date();
   for (let i = months - 1; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    const ym = formatYearMonth(d);
-    result.push({ yearMonth: ym, amount: sumByCategory(categoryId, ym) });
+    const d   = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const ym  = formatYearMonth(d);
+    const amount = allTxs
+      .filter(t => t.date.startsWith(ym) && t.categoryId === categoryId)
+      .reduce((sum, t) => sum + t.amount, 0);
+    result.push({ yearMonth: ym, amount });
   }
   return result;
 }
