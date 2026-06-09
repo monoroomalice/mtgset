@@ -166,9 +166,9 @@ body {
 }
 .summary-label { font-size: .75rem; color: var(--text-sub); margin-bottom: 6px; }
 .summary-value { font-size: 1.05rem; font-weight: 700; }
-.summary-value.positive { color: var(--income); }
-.summary-value.negative { color: var(--expense); }
-.summary-card.income .summary-value { color: var(--income); }
+.summary-value.negative, .negative { color: var(--expense); }
+.summary-value.positive, .positive { color: var(--income); }
+.summary-card.income .summary-value  { color: var(--income); }
 .summary-card.expense .summary-value { color: var(--expense); }
 
 /* ─── 固定費相殺ビュー ─── */
@@ -195,13 +195,20 @@ body {
 }
 .fixed-diff-label { font-size: .8rem; color: var(--text-sub); margin-bottom: 4px; }
 .fixed-diff { font-size: 1.4rem; font-weight: 800; }
-.fixed-diff.positive { color: var(--income); }
-.fixed-diff.negative { color: var(--expense); }
+/* .positive / .negative は summary-value と共通化のため上に統合済み */
 
 .progress-wrap { margin-bottom: 10px; }
-.progress-info { display: flex; justify-content: space-between; font-size: .78rem; color: var(--text-sub); margin-bottom: 4px; }
-.progress-bar { background: #E5E7EB; border-radius: 999px; height: 14px; overflow: hidden; }
+.progress-info   { display: flex; justify-content: space-between; font-size: .78rem; color: var(--text-sub); margin-bottom: 4px; }
+.progress-legend { display: flex; justify-content: space-between; font-size: .72rem; color: var(--text-sub); margin-top: 3px; }
+.progress-bar      { background: #E5E7EB; border-radius: 999px; height: 14px; overflow: hidden; }
 .progress-bar-fill { height: 100%; border-radius: 999px; transition: width .4s ease; }
+
+/* ─── カテゴリ早見表（JS生成） ─── */
+.category-ref { font-size: .82rem; }
+.ref-group { margin-bottom: 8px; }
+.ref-group-label { font-size: .78rem; font-weight: 700; color: var(--primary); margin-bottom: 2px; }
+.ref-items { color: var(--text-sub); line-height: 1.6; }
+.ref-note { font-size: .75rem; color: var(--text-sub); margin-top: 10px; }
 
 .breakdown-list { border-top: 1px solid var(--border); padding-top: 10px; }
 .breakdown-row {

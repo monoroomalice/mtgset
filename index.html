@@ -79,7 +79,7 @@
         <div class="progress-bar">
           <div class="progress-bar-fill" id="fixed-bar-fill" style="width:0%"></div>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-sub);margin-top:3px;">
+        <div class="progress-legend">
           <span>🟢 余裕あり</span>
           <span>🟡 注意 80%〜</span>
           <span>🔴 超過</span>
@@ -175,23 +175,11 @@
       </form>
     </div>
 
-    <!-- 収入カテゴリ一覧（参考） -->
+    <!-- 収入カテゴリ一覧（JS で動的生成） -->
     <div class="card">
-      <div class="card-title">
-        <span class="title-icon">📋</span>
-        収入カテゴリ一覧
-      </div>
-      <div style="font-size:.82rem;">
-        <div class="section-title" style="margin-top:0">夫・給与</div>
-        <div style="padding:4px 0;color:var(--text-sub)">夫：本給（固定分）｜ 夫：変動給（残業・シフト）</div>
-        <div class="section-title">私・事業</div>
-        <div style="padding:4px 0;color:var(--text-sub)">私：FC教室利益｜ 私：動画編集</div>
-        <div class="section-title">私・給与/在宅</div>
-        <div style="padding:4px 0;color:var(--text-sub)">私：在宅ワーク（時給）｜ 私：アルバイトA｜ 私：アルバイトB</div>
-        <p style="margin-top:10px;font-size:.75rem;color:var(--text-sub)">
-          💡 アルバイトは給与明細の「差引支給額（手取り）」を入力してください。
-        </p>
-      </div>
+      <div class="card-title"><span class="title-icon">📋</span>収入カテゴリ一覧</div>
+      <div id="income-category-ref" class="category-ref"></div>
+      <p class="ref-note">💡 アルバイトは給与明細の「差引支給額（手取り）」を入力してください。</p>
     </div>
   </section>
 
@@ -254,23 +242,11 @@
       </form>
     </div>
 
-    <!-- 支出カテゴリ早見表 -->
+    <!-- 支出カテゴリ早見表（JS で動的生成） -->
     <div class="card">
-      <div class="card-title">
-        <span class="title-icon">📋</span>
-        支出カテゴリ早見表
-      </div>
-      <div style="font-size:.82rem;">
-        <div class="section-title" style="margin-top:0;color:#4338CA">🔒 固定費</div>
-        <div style="padding:4px 0;color:var(--text-sub)">住宅ローン｜電気代（オール電化）｜水道代｜スマホ代｜ペット保険料｜各種保険</div>
-        <div class="section-title" style="color:#059669">🔄 変動費・生活費</div>
-        <div style="padding:4px 0;color:var(--text-sub)">犬：動物病院｜犬：フード・消耗品｜娘：教育・習い事｜娘：衣服・イベント｜医療費｜お小遣い｜予備費</div>
-        <div class="section-title" style="color:#D97706">🏦 特別支出積立</div>
-        <div style="padding:4px 0;color:var(--text-sub)">税金積立｜年払い保険料積立｜車検・メンテナンス積立</div>
-        <p style="margin-top:10px;font-size:.75rem;color:var(--text-sub)">
-          💡 特別支出積立は「特別積立口座」への移動として記録するのがコツ。月末に黒字が維持できます。
-        </p>
-      </div>
+      <div class="card-title"><span class="title-icon">📋</span>支出カテゴリ早見表</div>
+      <div id="expense-category-ref" class="category-ref"></div>
+      <p class="ref-note">💡 特別支出積立は「特別積立口座」への移動として記録するのがコツ。月末に黒字が維持できます。</p>
     </div>
   </section>
 
